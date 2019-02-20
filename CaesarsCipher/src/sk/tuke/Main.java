@@ -6,32 +6,23 @@ public class Main {
 
     public static void main(String[] args) {
         Timer timer = new Timer();
-        String filePath = "input2.txt";
+        String filePath = "input3.txt";
 
         timer.start();
-        System.out.println("File length: " + cipher(filePath));
-        System.out.println("Ciphering sequentially done in : " + timer.finish() + " ms.");
+        System.out.println("File length: " + decipherConcurrently(filePath, 2, 1));
+        System.out.println("Deciphering concurrently done in : " + timer.finish() + " ms.");
 
         timer.start();
-        System.out.println("File length: " + cipherConcurrently(filePath, 0));
-        System.out.println("Ciphering concurrently done in : " + timer.finish() + " ms.");
+        System.out.println("File length: " + decipherConcurrently(filePath, 2, 2));
+        System.out.println("Deciphering concurrently done in : " + timer.finish() + " ms.");
+
+        timer.start();
+        System.out.println("File length: " + decipherConcurrently(filePath, 2, 4));
+        System.out.println("Deciphering concurrently done in : " + timer.finish() + " ms.");
     }
 
-    public static int cipher(String path) {
-        StringBuilder builder = new StringBuilder();
-        try (FileInputStream fis = new FileInputStream(new File(path))) {
-            char current;
-            while (fis.available() > 0) {
-                current = (char) fis.read();
-                builder.append(cipherCharacter(current));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return builder.length();
-    }
 
-    public static int cipherConcurrently(String file, int threadCount) {
+    public static int decipherConcurrently(String file, int key, int threadCount) {
         if(threadCount < 1){
             throw new IllegalArgumentException("At least one thread has to be used");
         }
@@ -46,6 +37,8 @@ public class Main {
 
             Thread[] threads = new Thread[threadCount];
 
+
+            //Create and stard threads
             for (int i = 0; i < threadCount; i++) {
                 final int multiplier = i;
                 final int start = marker * multiplier;
@@ -56,11 +49,12 @@ public class Main {
                     end = marker * (multiplier + 1);
                 }
 
-                threads[i] = new Thread(() -> partialCipher(start, end, results[multiplier], raf));
+                threads[i] = new Thread(() -> partialDecipher(key, start, end, results[multiplier], file));
 
                 threads[i].start();
             }
 
+            //Synchronize threads
             for (Thread thread : threads) {
                 try {
                     thread.join();
@@ -69,6 +63,7 @@ public class Main {
                 }
             }
 
+            //Join partial results
             StringBuilder result = new StringBuilder();
             for (StringBuilder partial : results) {
                 result.append(partial);
@@ -82,28 +77,38 @@ public class Main {
         return 0;
     }
 
-    public static StringBuilder partialCipher(int start, int end, StringBuilder result, RandomAccessFile raf) {
+    //Decipher a part of file.
+    public static StringBuilder partialDecipher(int key, int start, int end, StringBuilder result, String file) {
+        RandomAccessFile raf = null;
+        try {
+            raf = new RandomAccessFile(file, "r");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        double s = System.currentTimeMillis();
         for (int i = start; i < end; i++) {
             try {
-                result.append(cipherCharacter((char) raf.readByte()));
+                result.append(decipherCharacter( (char) raf.readByte(), key));
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
-        System.out.println(result);
         return result;
     }
 
-    public static char cipherCharacter(char current) {
+
+    //Decipher a single character
+    public static char decipherCharacter(char current, int key) {
         if (current < 91 && current > 64) {
-            current++;
-            if (current > 90) {
-                current -= 26;
+            current -= key;
+            if (current < 65) {
+                current += 26;
             }
         } else if (current < 123 && current > 96) {
-            current++;
-            if (current > 122) {
-                current -= 26;
+            current-= key;
+            if (current < 97) {
+                current += 26;
             }
         }
         return current;
